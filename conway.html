@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conway's Game of Life</title>
+  <style>
+    :root {
+      --bg-0: #0f1720;
+      --bg-1: #1f2d3d;
+      --panel: #f3ede0;
+      --panel-ink: #1d2a38;
+      --accent: #0f8b8d;
+      --accent-strong: #116466;
+      --alive: #f4d35e;
+      --alive-2: #ee964b;
+      --grid-line: rgba(255, 255, 255, 0.08);
+      --canvas-bg: #10151b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: "Courier New", "Lucida Console", monospace;
+      color: var(--panel-ink);
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 10% -20%, #355070 0%, transparent 60%),
+        radial-gradient(1000px 700px at 100% 120%, #5f0f40 0%, transparent 55%),
+        linear-gradient(160deg, var(--bg-0), var(--bg-1));
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: min(1100px, calc(100vw - 32px));
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      animation: fade-in 380ms ease-out;
+    }
+
+    .library {
+      background: var(--panel);
+      border: 2px solid #d9cdb1;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 6px 16px rgba(8, 9, 11, 0.25);
+      min-width: 0;
+    }
+
+    .library-header {
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.8;
+      border-bottom: 1px solid #d9cdb1;
+      padding-bottom: 6px;
+    }
+
+    .library-items {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: #c6b692 transparent;
+    }
+
+    .library-items::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .library-items::-webkit-scrollbar-thumb {
+      background: #c6b692;
+      border-radius: 10px;
+    }
+
+    .shape-item {
+      background: #e7dcc2;
+      border: 1px solid #c6b692;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: grab;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 80px;
+      transition: background 150ms ease;
+      user-select: none;
+    }
+
+    .shape-item:hover {
+      background: #dfd2b5;
+    }
+
+    .shape-item:active {
+      cursor: grabbing;
+    }
+
+    .shape-name {
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .shape-preview {
+      display: grid;
+      gap: 1px;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 2px;
+      border-radius: 2px;
+    }
+
+    .preview-cell {
+      width: 5px;
+      height: 5px;
+      border-radius: 1px;
+    }
+
+    .preview-cell.alive {
+      background: var(--accent);
+    }
+
+    .bar {
+      background: var(--panel);
+      border: 2px solid #d9cdb1;
+      box-shadow: 0 10px 22px rgba(8, 9, 11, 0.35);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .left,
+    .right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .title {
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 8px 10px;
+      background: #e7dcc2;
+      border: 1px solid #c6b692;
+      border-radius: 8px;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--accent);
+      color: #f9feff;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.secondary {
+      background: var(--accent-strong);
+    }
+
+    label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: #e7dcc2;
+      border: 1px solid #c6b692;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      width: 130px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-weight: 700;
+      background: #e7dcc2;
+      border: 1px solid #c6b692;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .canvas-wrap {
+      background: rgba(11, 15, 20, 0.5);
+      backdrop-filter: blur(2px);
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 10px 24px rgba(8, 9, 11, 0.38);
+      min-width: 0;
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 100%;
+      height: min(72vh, 760px);
+      display: block;
+      border-radius: 10px;
+      background: var(--canvas-bg);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      touch-action: none;
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: #d7dce2;
+      font-size: 0.95rem;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    @media (max-width: 720px) {
+      .bar {
+        justify-content: center;
+      }
+
+      canvas {
+        height: min(66vh, 520px);
+      }
+    }
+
+    @keyframes fade-in {
+      from {
+        transform: translateY(8px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section class="bar">
+      <div class="left">
+        <div class="title">Conway's Game of Life</div>
+        <button id="toggleBtn">Start</button>
+        <button id="stepBtn" class="secondary">Step</button>
+        <button id="randomBtn" class="secondary">Randomize</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+      </div>
+      <div class="right">
+        <label for="speedRange">
+          Speed
+          <input id="speedRange" type="range" min="1" max="60" value="12">
+          <span id="speedLabel">12/s</span>
+        </label>
+        <div class="stats">
+          <span style="font-size: 0.75rem; opacity: 0.7; margin-right: 4px;">Density</span>
+          <button id="zoomOutBtn" class="secondary" style="padding: 4px 8px; min-width: 32px;">-</button>
+          <span id="zoomLabel">100%</span>
+          <button id="zoomInBtn" class="secondary" style="padding: 4px 8px; min-width: 32px;">+</button>
+        </div>
+        <div class="stats">
+          <span id="generation">Gen: 0</span>
+          <span id="living">Live: 0</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="library">
+      <div class="library-header">Shape Library (Drag to Grid)</div>
+      <div class="library-items" id="libraryItems"></div>
+    </section>
+
+    <section class="canvas-wrap">
+      <canvas id="life"></canvas>
+      <div class="hint">Click or drag to draw. Right-click/drag to erase. Space toggles run/pause.</div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("life");
+      const ctx = canvas.getContext("2d");
+
+      const toggleBtn = document.getElementById("toggleBtn");
+      const stepBtn = document.getElementById("stepBtn");
+      const randomBtn = document.getElementById("randomBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const speedRange = document.getElementById("speedRange");
+      const speedLabel = document.getElementById("speedLabel");
+      const generationEl = document.getElementById("generation");
+      const livingEl = document.getElementById("living");
+      const zoomInBtn = document.getElementById("zoomInBtn");
+      const zoomOutBtn = document.getElementById("zoomOutBtn");
+      const zoomLabel = document.getElementById("zoomLabel");
+
+      const state = {
+        baseCellSize: 12,
+        zoom: 1.0,
+        cellSize: 12,
+        cols: 0,
+        rows: 0,
+        generation: 0,
+        running: false,
+        speed: Number(speedRange.value),
+        intervalMs: 1000 / Number(speedRange.value),
+        lastFrame: 0,
+        accumulator: 0,
+        drawing: false,
+        drawValue: 1,
+        liveCount: 0,
+        grid: new Uint8Array(0),
+        next: new Uint8Array(0),
+        draggingShape: null,
+        dragPos: { x: -1, y: -1 }
+      };
+
+      const SHAPES = {
+        Glider: [[0, 1, 0], [0, 0, 1], [1, 1, 1]],
+        LWSS: [
+          [0, 1, 1, 1, 1],
+          [1, 0, 0, 0, 1],
+          [0, 0, 0, 0, 1],
+          [1, 0, 0, 1, 0]
+        ],
+        MWSS: [
+          [0, 0, 0, 1, 0, 0],
+          [0, 1, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 0],
+          [1, 0, 0, 0, 0, 1],
+          [1, 1, 1, 1, 1, 0]
+        ],
+        HWSS: [
+          [0, 0, 0, 1, 1, 0, 0],
+          [0, 1, 0, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 0, 0],
+          [1, 0, 0, 0, 0, 0, 1],
+          [1, 1, 1, 1, 1, 1, 0]
+        ],
+        Blinker: [[1, 1, 1]],
+        Toad: [
+          [0, 1, 1, 0],
+          [1, 0, 0, 0],
+          [0, 0, 0, 1],
+          [0, 1, 1, 0]
+        ],
+        Beacon: [
+          [1, 1, 0, 0],
+          [1, 1, 0, 0],
+          [0, 0, 1, 1],
+          [0, 0, 1, 1]
+        ],
+        Pulsar: [
+          [0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0]
+        ],
+        Pentadecathlon: [
+          [0, 0, 1, 0, 0, 0, 0, 1, 0, 0],
+          [1, 1, 0, 1, 1, 1, 1, 0, 1, 1],
+          [0, 0, 1, 0, 0, 0, 0, 1, 0, 0]
+        ],
+        "Figure Eight": [
+          [1, 1, 0, 0, 0, 0],
+          [1, 1, 0, 1, 0, 0],
+          [0, 0, 0, 0, 1, 0],
+          [0, 1, 0, 0, 0, 0],
+          [0, 0, 1, 0, 1, 1],
+          [0, 0, 0, 0, 1, 1]
+        ],
+        Gun: [
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        Diehard: [
+          [0, 0, 0, 0, 0, 0, 1, 0],
+          [1, 1, 0, 0, 0, 0, 0, 0],
+          [0, 1, 0, 0, 0, 1, 1, 1]
+        ],
+        Acorn: [
+          [0, 1, 0, 0, 0, 0, 0],
+          [0, 0, 0, 1, 0, 0, 0],
+          [1, 1, 0, 0, 1, 1, 1]
+        ]
+      };
+
+      function indexOf(x, y) {
+        return y * state.cols + x;
+      }
+
+      function resizeGrid(preserve = true) {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        const cssW = Math.max(200, Math.floor(rect.width));
+        const cssH = Math.max(200, Math.floor(rect.height));
+
+        canvas.width = Math.floor(cssW * dpr);
+        canvas.height = Math.floor(cssH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const oldCols = state.cols;
+        const oldRows = state.rows;
+        const oldGrid = state.grid;
+
+        // Apply zoom to the base cell size. 
+        // Lower cellSize = Higher Density = More Cells.
+        state.cellSize = Math.max(1, (cssW < 700 ? 10 : 12) / state.zoom);
+        state.cols = Math.max(10, Math.floor(cssW / state.cellSize));
+        state.rows = Math.max(10, Math.floor(cssH / state.cellSize));
+
+        state.grid = new Uint8Array(state.cols * state.rows);
+        state.next = new Uint8Array(state.cols * state.rows);
+
+        if (preserve && oldGrid && oldGrid.length) {
+          const copyCols = Math.min(oldCols, state.cols);
+          const copyRows = Math.min(oldRows, state.rows);
+          for (let y = 0; y < copyRows; y++) {
+            for (let x = 0; x < copyCols; x++) {
+              state.grid[indexOf(x, y)] = oldGrid[y * oldCols + x];
+            }
+          }
+        }
+
+        state.liveCount = countLiveCells();
+        zoomLabel.textContent = Math.round(state.zoom * 100) + "%";
+      }
+
+      function countLiveCells() {
+        let total = 0;
+        const arr = state.grid;
+        for (let i = 0; i < arr.length; i++) total += arr[i];
+        return total;
+      }
+
+      function clearGrid() {
+        state.grid.fill(0);
+        state.next.fill(0);
+        state.generation = 0;
+        state.liveCount = 0;
+      }
+
+      function randomize(fill = 0.22) {
+        let total = 0;
+        for (let i = 0; i < state.grid.length; i++) {
+          const alive = Math.random() < fill ? 1 : 0;
+          state.grid[i] = alive;
+          total += alive;
+        }
+        state.generation = 0;
+        state.liveCount = total;
+      }
+
+      function setCellFromEvent(evt, value) {
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((evt.clientX - rect.left) / state.cellSize);
+        const y = Math.floor((evt.clientY - rect.top) / state.cellSize);
+
+        if (x < 0 || y < 0 || x >= state.cols || y >= state.rows) return;
+
+        const idx = indexOf(x, y);
+        if (state.grid[idx] !== value) {
+          state.liveCount += value === 1 ? 1 : -1;
+          state.grid[idx] = value;
+        }
+      }
+
+      function step() {
+        const cols = state.cols;
+        const rows = state.rows;
+        const grid = state.grid;
+        const next = state.next;
+        let liveTotal = 0;
+
+        for (let y = 0; y < rows; y++) {
+          const ym1 = (y - 1 + rows) % rows;
+          const yp1 = (y + 1) % rows;
+          for (let x = 0; x < cols; x++) {
+            const xm1 = (x - 1 + cols) % cols;
+            const xp1 = (x + 1) % cols;
+
+            const neighbors =
+              grid[indexOf(xm1, ym1)] +
+              grid[indexOf(x, ym1)] +
+              grid[indexOf(xp1, ym1)] +
+              grid[indexOf(xm1, y)] +
+              grid[indexOf(xp1, y)] +
+              grid[indexOf(xm1, yp1)] +
+              grid[indexOf(x, yp1)] +
+              grid[indexOf(xp1, yp1)];
+
+            const idx = indexOf(x, y);
+            const alive = grid[idx];
+            const nextAlive = (alive && (neighbors === 2 || neighbors === 3)) || (!alive && neighbors === 3) ? 1 : 0;
+            next[idx] = nextAlive;
+            liveTotal += nextAlive;
+          }
+        }
+
+        state.grid = next;
+        state.next = grid;
+        state.generation++;
+        state.liveCount = liveTotal;
+      }
+
+      function draw() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const size = state.cellSize;
+        const cols = state.cols;
+        const rows = state.rows;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#0d141b";
+        ctx.fillRect(0, 0, width, height);
+
+        const grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, "rgba(244, 211, 94, 1)");
+        grad.addColorStop(1, "rgba(238, 150, 75, 1)");
+        ctx.fillStyle = grad;
+
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            if (state.grid[indexOf(x, y)]) {
+              const drawSize = Math.max(1, size - 1);
+              ctx.fillRect(x * size, y * size, drawSize, drawSize);
+            }
+          }
+        }
+
+        if (state.dragPos.x !== -1 && state.draggingShape) {
+          ctx.fillStyle = "rgba(244, 211, 94, 0.45)";
+          state.draggingShape.forEach((row, dy) => {
+            row.forEach((cell, dx) => {
+              if (cell) {
+                const x = state.dragPos.x + dx;
+                const y = state.dragPos.y + dy;
+                if (x >= 0 && x < state.cols && y >= 0 && y < state.rows) {
+                  const drawSize = Math.max(1, size - 1);
+                  ctx.fillRect(x * size, y * size, drawSize, drawSize);
+                }
+              }
+            });
+          });
+        }
+
+        // Only draw grid if cells are large enough to see it
+        if (size > 3) {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+
+          for (let x = 0; x <= cols; x++) {
+            const px = x * size + 0.5;
+            ctx.moveTo(px, 0);
+            ctx.lineTo(px, rows * size);
+          }
+          for (let y = 0; y <= rows; y++) {
+            const py = y * size + 0.5;
+            ctx.moveTo(0, py);
+            ctx.lineTo(cols * size, py);
+          }
+
+          ctx.stroke();
+        }
+
+        generationEl.textContent = "Gen: " + state.generation;
+        livingEl.textContent = "Live: " + state.liveCount;
+      }
+
+      function populateLibrary() {
+        const libraryItems = document.getElementById("libraryItems");
+        for (const [name, data] of Object.entries(SHAPES)) {
+          const item = document.createElement("div");
+          item.className = "shape-item";
+          item.draggable = true;
+
+          const preview = document.createElement("div");
+          preview.className = "shape-preview";
+          preview.style.gridTemplateColumns = `repeat(${data[0].length}, 1fr)`;
+
+          data.forEach(row => {
+            row.forEach(cell => {
+              const c = document.createElement("div");
+              c.className = "preview-cell" + (cell ? " alive" : "");
+              preview.appendChild(c);
+            });
+          });
+
+          const label = document.createElement("div");
+          label.className = "shape-name";
+          label.textContent = name;
+
+          item.appendChild(preview);
+          item.appendChild(label);
+
+          item.addEventListener("dragstart", (e) => {
+            state.draggingShape = data;
+            e.dataTransfer.setData("text/plain", name);
+            e.dataTransfer.effectAllowed = "copy";
+          });
+
+          item.addEventListener("dragend", () => {
+            state.draggingShape = null;
+            state.dragPos = { x: -1, y: -1 };
+          });
+
+          libraryItems.appendChild(item);
+        }
+      }
+
+      function frame(ts) {
+        if (!state.lastFrame) state.lastFrame = ts;
+        const dt = ts - state.lastFrame;
+        state.lastFrame = ts;
+
+        if (state.running) {
+          state.accumulator += dt;
+          while (state.accumulator >= state.intervalMs) {
+            step();
+            state.accumulator -= state.intervalMs;
+          }
+        }
+
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      function setRunning(next) {
+        state.running = next;
+        toggleBtn.textContent = state.running ? "Pause" : "Start";
+      }
+
+      toggleBtn.addEventListener("click", () => setRunning(!state.running));
+      stepBtn.addEventListener("click", () => {
+        step();
+        draw();
+      });
+      clearBtn.addEventListener("click", () => {
+        clearGrid();
+        draw();
+      });
+      randomBtn.addEventListener("click", () => {
+        randomize();
+        draw();
+      });
+
+      zoomInBtn.addEventListener("click", () => {
+        state.zoom = Math.min(10, state.zoom * 1.5);
+        resizeGrid(true);
+      });
+
+      zoomOutBtn.addEventListener("click", () => {
+        state.zoom = Math.max(0.1, state.zoom / 1.5);
+        resizeGrid(true);
+      });
+
+      canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+        state.zoom = Math.max(0.1, Math.min(10, state.zoom * delta));
+        resizeGrid(true);
+      }, { passive: false });
+
+      speedRange.addEventListener("input", () => {
+        state.speed = Number(speedRange.value);
+        state.intervalMs = 1000 / state.speed;
+        speedLabel.textContent = state.speed + "/s";
+      });
+
+      canvas.addEventListener("pointerdown", (evt) => {
+        if (evt.button !== 0 && evt.button !== 2) return;
+        state.drawing = true;
+        state.drawValue = evt.button === 2 ? 0 : 1;
+        setCellFromEvent(evt, state.drawValue);
+        draw();
+      });
+
+      canvas.addEventListener("pointermove", (evt) => {
+        if (!state.drawing) return;
+        setCellFromEvent(evt, state.drawValue);
+        draw();
+      });
+
+      window.addEventListener("pointerup", () => {
+        state.drawing = false;
+      });
+
+      canvas.addEventListener("contextmenu", (evt) => evt.preventDefault());
+
+      canvas.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / state.cellSize);
+        const y = Math.floor((e.clientY - rect.top) / state.cellSize);
+        state.dragPos = { x, y };
+      });
+
+      canvas.addEventListener("dragleave", () => {
+        state.dragPos = { x: -1, y: -1 };
+      });
+
+      canvas.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (!state.draggingShape) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const startX = Math.floor((e.clientX - rect.left) / state.cellSize);
+        const startY = Math.floor((e.clientY - rect.top) / state.cellSize);
+
+        state.draggingShape.forEach((row, dy) => {
+          row.forEach((cell, dx) => {
+            if (cell) {
+              const x = startX + dx;
+              const y = startY + dy;
+              if (x >= 0 && x < state.cols && y >= 0 && y < state.rows) {
+                const idx = indexOf(x, y);
+                if (state.grid[idx] === 0) {
+                  state.grid[idx] = 1;
+                  state.liveCount++;
+                }
+              }
+            }
+          });
+        });
+
+        state.draggingShape = null;
+        state.dragPos = { x: -1, y: -1 };
+        draw();
+      });
+
+      window.addEventListener("keydown", (evt) => {
+        if (evt.code === "Space") {
+          evt.preventDefault();
+          setRunning(!state.running);
+        } else if (evt.key.toLowerCase() === "r") {
+          randomize();
+        } else if (evt.key.toLowerCase() === "c") {
+          clearGrid();
+        } else if (evt.key.toLowerCase() === "s") {
+          step();
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        const oldGrid = state.grid.slice();
+        const oldCols = state.cols;
+        const oldRows = state.rows;
+        resizeGrid(false);
+
+        // Copy the top-left overlap after the canvas dimensions change.
+        const copyCols = Math.min(oldCols, state.cols);
+        const copyRows = Math.min(oldRows, state.rows);
+        for (let y = 0; y < copyRows; y++) {
+          for (let x = 0; x < copyCols; x++) {
+            state.grid[indexOf(x, y)] = oldGrid[y * oldCols + x];
+          }
+        }
+        state.liveCount = countLiveCells();
+      });
+
+      populateLibrary();
+      resizeGrid(false);
+      randomize(0.2);
+      speedLabel.textContent = state.speed + "/s";
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+
+</html>
