@@ -26,7 +26,3 @@ Each cell on the grid is either **alive** or **dead**. Every generation:
 1. A live cell with 2 or 3 neighbours survives
 2. A dead cell with exactly 3 neighbours becomes alive
 3. All other cells die or stay dead
-
-## License
-
-MIT
