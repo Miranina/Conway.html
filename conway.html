@@ -1,10 +1,8 @@
-<!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Conway's Game of Life</title>
+  <title>Conway's Game of Life - Age Tracking</title>
   <style>
     :root {
       --bg-0: #0f1720;
@@ -13,8 +11,8 @@
       --panel-ink: #1d2a38;
       --accent: #0f8b8d;
       --accent-strong: #116466;
-      --alive: #f4d35e;
-      --alive-2: #ee964b;
+      --alive-young: #f4d35e; 
+      --alive-old: #6a0dad;
       --grid-line: rgba(255, 255, 255, 0.08);
       --canvas-bg: #10151b;
     }
@@ -278,7 +276,7 @@
   <main class="app">
     <section class="bar">
       <div class="left">
-        <div class="title">Conway's Game of Life</div>
+        <div class="title">Conway's Game of Life (Aged)</div>
         <button id="toggleBtn">Start</button>
         <button id="stepBtn" class="secondary">Step</button>
         <button id="randomBtn" class="secondary">Randomize</button>
@@ -289,6 +287,11 @@
           Speed
           <input id="speedRange" type="range" min="1" max="60" value="12">
           <span id="speedLabel">12/s</span>
+        </label>
+        <label for="maxAgeRange">
+          Purple Age
+          <input id="maxAgeRange" type="range" min="5" max="255" value="255">
+          <span id="maxAgeLabel">255</span>
         </label>
         <div class="stats">
           <span style="font-size: 0.75rem; opacity: 0.7; margin-right: 4px;">Density</span>
@@ -325,6 +328,8 @@
       const clearBtn = document.getElementById("clearBtn");
       const speedRange = document.getElementById("speedRange");
       const speedLabel = document.getElementById("speedLabel");
+      const maxAgeRange = document.getElementById("maxAgeRange");
+      const maxAgeLabel = document.getElementById("maxAgeLabel");
       const generationEl = document.getElementById("generation");
       const livingEl = document.getElementById("living");
       const zoomInBtn = document.getElementById("zoomInBtn");
@@ -340,6 +345,7 @@
         generation: 0,
         running: false,
         speed: Number(speedRange.value),
+        maxAgeLimit: Number(maxAgeRange.value),
         intervalMs: 1000 / Number(speedRange.value),
         lastFrame: 0,
         accumulator: 0,
@@ -348,6 +354,7 @@
         liveCount: 0,
         grid: new Uint8Array(0),
         next: new Uint8Array(0),
+        ageGrid: new Uint8Array(0), 
         draggingShape: null,
         dragPos: { x: -1, y: -1 }
       };
@@ -456,24 +463,33 @@
         const oldRows = state.rows;
         const oldGrid = state.grid;
 
-        // Apply zoom to the base cell size. 
-        // Lower cellSize = Higher Density = More Cells.
         state.cellSize = Math.max(1, (cssW < 700 ? 10 : 12) / state.zoom);
         state.cols = Math.max(10, Math.floor(cssW / state.cellSize));
         state.rows = Math.max(10, Math.floor(cssH / state.cellSize));
 
-        state.grid = new Uint8Array(state.cols * state.rows);
-        state.next = new Uint8Array(state.cols * state.rows);
+        const newLength = state.cols * state.rows;
+        const newGrid = new Uint8Array(newLength);
+        const newAgeGrid = new Uint8Array(newLength);
 
         if (preserve && oldGrid && oldGrid.length) {
           const copyCols = Math.min(oldCols, state.cols);
           const copyRows = Math.min(oldRows, state.rows);
           for (let y = 0; y < copyRows; y++) {
             for (let x = 0; x < copyCols; x++) {
-              state.grid[indexOf(x, y)] = oldGrid[y * oldCols + x];
+              const oldIdx = y * oldCols + x;
+              const newIdx = indexOf(x, y);
+              
+              if (oldGrid[oldIdx]) {
+                newGrid[newIdx] = 1;
+                newAgeGrid[newIdx] = state.ageGrid[oldIdx]; 
+              }
             }
           }
         }
+
+        state.grid = newGrid;
+        state.next = new Uint8Array(newLength);
+        state.ageGrid = newAgeGrid;
 
         state.liveCount = countLiveCells();
         zoomLabel.textContent = Math.round(state.zoom * 100) + "%";
@@ -489,6 +505,7 @@
       function clearGrid() {
         state.grid.fill(0);
         state.next.fill(0);
+        state.ageGrid.fill(0);
         state.generation = 0;
         state.liveCount = 0;
       }
@@ -498,6 +515,7 @@
         for (let i = 0; i < state.grid.length; i++) {
           const alive = Math.random() < fill ? 1 : 0;
           state.grid[i] = alive;
+          state.ageGrid[i] = alive ? 1 : 0;
           total += alive;
         }
         state.generation = 0;
@@ -515,6 +533,12 @@
         if (state.grid[idx] !== value) {
           state.liveCount += value === 1 ? 1 : -1;
           state.grid[idx] = value;
+          
+          if (value === 1) {
+            state.ageGrid[idx] = 1; 
+          } else {
+            state.ageGrid[idx] = 0;
+          }
         }
       }
 
@@ -522,6 +546,7 @@
         const cols = state.cols;
         const rows = state.rows;
         const grid = state.grid;
+        const ageGrid = state.ageGrid;
         const next = state.next;
         let liveTotal = 0;
 
@@ -544,9 +569,21 @@
 
             const idx = indexOf(x, y);
             const alive = grid[idx];
+            
             const nextAlive = (alive && (neighbors === 2 || neighbors === 3)) || (!alive && neighbors === 3) ? 1 : 0;
             next[idx] = nextAlive;
-            liveTotal += nextAlive;
+
+            if (nextAlive) {
+              liveTotal++;
+              
+              if (!alive) {
+                ageGrid[idx] = 1;
+              } else {
+                ageGrid[idx] = Math.min(255, ageGrid[idx] + 1);
+              }
+            } else {
+              ageGrid[idx] = 0;
+            }
           }
         }
 
@@ -562,19 +599,29 @@
         const size = state.cellSize;
         const cols = state.cols;
         const rows = state.rows;
+        const maxAge = state.maxAgeLimit;
 
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#0d141b";
         ctx.fillRect(0, 0, width, height);
 
-        const grad = ctx.createLinearGradient(0, 0, width, height);
-        grad.addColorStop(0, "rgba(244, 211, 94, 1)");
-        grad.addColorStop(1, "rgba(238, 150, 75, 1)");
-        ctx.fillStyle = grad;
-
         for (let y = 0; y < rows; y++) {
           for (let x = 0; x < cols; x++) {
             if (state.grid[indexOf(x, y)]) {
+              const age = state.ageGrid[indexOf(x, y)];
+              
+              // Clamp the effective age to maxAge
+              const effectiveAge = Math.min(age, maxAge);
+              
+              // Interpolate between Yellow (#f4d35e) and Deep Purple (#6a0dad)
+              const t = effectiveAge / maxAge; 
+              
+              const r = Math.floor(244 + (106 - 244) * t);
+              const g = Math.floor(211 + (13 - 211) * t);
+              const b = Math.floor(94 + (173 - 94) * t);
+
+              ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+              
               const drawSize = Math.max(1, size - 1);
               ctx.fillRect(x * size, y * size, drawSize, drawSize);
             }
@@ -582,6 +629,7 @@
         }
 
         if (state.dragPos.x !== -1 && state.draggingShape) {
+          // Show preview in lighter yellow
           ctx.fillStyle = "rgba(244, 211, 94, 0.45)";
           state.draggingShape.forEach((row, dy) => {
             row.forEach((cell, dx) => {
@@ -597,7 +645,6 @@
           });
         }
 
-        // Only draw grid if cells are large enough to see it
         if (size > 3) {
           ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
           ctx.lineWidth = 1;
@@ -720,6 +767,12 @@
         state.intervalMs = 1000 / state.speed;
         speedLabel.textContent = state.speed + "/s";
       });
+      
+      maxAgeRange.addEventListener("input", () => {
+        state.maxAgeLimit = Number(maxAgeRange.value);
+        maxAgeLabel.textContent = state.maxAgeLimit;
+        draw(); 
+      });
 
       canvas.addEventListener("pointerdown", (evt) => {
         if (evt.button !== 0 && evt.button !== 2) return;
@@ -770,6 +823,7 @@
                 const idx = indexOf(x, y);
                 if (state.grid[idx] === 0) {
                   state.grid[idx] = 1;
+                  state.ageGrid[idx] = 1; 
                   state.liveCount++;
                 }
               }
@@ -797,16 +851,22 @@
 
       window.addEventListener("resize", () => {
         const oldGrid = state.grid.slice();
+        const oldAgeGrid = state.ageGrid.slice();
         const oldCols = state.cols;
         const oldRows = state.rows;
         resizeGrid(false);
 
-        // Copy the top-left overlap after the canvas dimensions change.
         const copyCols = Math.min(oldCols, state.cols);
         const copyRows = Math.min(oldRows, state.rows);
         for (let y = 0; y < copyRows; y++) {
           for (let x = 0; x < copyCols; x++) {
-            state.grid[indexOf(x, y)] = oldGrid[y * oldCols + x];
+            const oldIdx = y * oldCols + x;
+            const newIdx = indexOf(x, y);
+            
+            if (oldGrid[oldIdx]) {
+              state.grid[newIdx] = 1;
+              state.ageGrid[newIdx] = oldAgeGrid[oldIdx];
+            }
           }
         }
         state.liveCount = countLiveCells();
@@ -816,9 +876,9 @@
       resizeGrid(false);
       randomize(0.2);
       speedLabel.textContent = state.speed + "/s";
+      maxAgeLabel.textContent = state.maxAgeLimit;
       requestAnimationFrame(frame);
     })();
   </script>
 </body>
-
-</html>
+</html>        
