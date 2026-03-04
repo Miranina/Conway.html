@@ -2,9 +2,7 @@
 
 A self-contained, interactive implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) in a single HTML file — no dependencies, no build step.
 
-**[Live Demo](https://tawfiq.co.uk/wp-content/uploads/conway.html)**
-
-![Conway's Game of Life](https://img.shields.io/badge/status-live-brightgreen)
+I am in no way a good programmer or even a programmer at all to be honest. I have to be frank that I asked Qwen3-Coder-Next ( running locally ) for the addition. What is added is the capacity for the cells to age. They will slowly turn purple with age. There is a slider to control how fast they turn purple in generation. That create very mesmerizing visual imho.
 
 ## Features
 
